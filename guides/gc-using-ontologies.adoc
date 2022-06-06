@@ -1,0 +1,339 @@
+= GC Workshop - Three ways you can use ontologies with Neo4j
+
+
+
+== Exploring an ontology
+
+There are several ways to explore an RDF-based ontology using n10s
+
+Parse the triples in the onto...
+
+[source,cypher]
+----
+call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples")
+----
+
+List the classes (categories) defined in the onto...
+
+[source,cypher]
+----
+call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where predicate = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" and
+	  object = "http://www.w3.org/2000/01/rdf-schema#Class"
+return subject
+----
+
+List the elements -both properties and relationships- defined in the onto for a given category (Organization)...
+
+[source,cypher]
+----
+call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where predicate = "https://schema.org/domainIncludes" and
+	  object = "https://schema.org/Organization"
+with collect (subject) as orgProps
+call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where subject in orgProps and predicate = "http://www.w3.org/2000/01/rdf-schema#comment"
+return subject, object
+----
+
+
+== Load data into Neo4j using an ontology as the target model
+
+A simpler ontology:
+
+[source,cypher]
+----
+call n10s.rdf.stream.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/interop/onto/rail-simple.ttl","Turtle")
+----
+
+[source,cypher]
+----
+call n10s.onto.stream.fetch()
+----
+
+== Automatically generating a data importer model from the ontology (experimental):
+
+[source,cypher]
+----
+call n10s.experimental.stream.dimodel.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/interop/onto/rail-simple.ttl","Turtle")
+----
+
+Open the model in https://data-importer.graphapp.io/[data importer] and carry out import on your neo4j instance from the https://github.com/jbarrasa/gc-2022/tree/main/interop/data[data files].
+
+Then if you want an instant (ootb) RDF endpoint, add the mappings to the ontology.
+
+[source,cypher]
+----
+CALL n10s.nsprefixes.add(...);
+...
+
+CALL n10s.mapping.add(...);
+----
+
+
+== We can test the RDF endpoint
+
+The endpoint exposes the graph data as
+
+by node id... (pick any from your graph)
+
+[source,cypher]
+----
+:get /rdf/neo4j/describe/...
+----
+
+or using a cypher query...
+
+All stations adjacent to London Bridge station (LBG)
+
+[source,cypher]
+----
+MATCH (:Station { stationCode: 'LBG'})-[:link]-(s) RETURN  s
+----
+
+[source,cypher]
+----
+:post /rdf/neo4j/cypher
+{
+"cypher":"MATCH (:Station { stationCode: 'LBG'})-[:link]-(s) RETURN  s",
+"format":"N-Triples"
+}
+----
+
+What about properties in relationships? Use `Turtle-star` format
+
+== (optional) Add geo point for presentation purposes and build a dashboard?
+
+[source,cypher]
+----
+match (s:Station) set s.point = point({latitude: s.lat, longitude: s.long})
+----
+
+Path between two stations
+
+[source,cypher]
+----
+match p = shortestPath((:Station { stationCode: "CTR"})-[:link*..40]->(:Station { stationCode: "HPD"}))
+return p
+----
+
+Neodash from the GraphApp Gallery
+
+
+
+== Dataset: Articles on wildfires
+
+The data for this example comes from the California Fire Science Consortium  https://www.cafiresci.org/research-publications
+
+[source,cypher]
+----
+match (a:Article) where a.txt contains "bird"
+return a
+----
+
+== Automated Entity Extraction
+
+Using GCP Natural Language API (via APOC)
+
+[source,cypher]
+----
+match (a:Article) where not coalesce(a.processed,false) //with a limit 1
+CALL apoc.nlp.gcp.entities.stream(a, {
+ nodeProperty: 'txt',
+ key: $key
+})
+YIELD value
+UNWIND value.entities as entity
+merge (e:Entity { name: entity.name, type: entity.type}) ON CREATE SET e.wikiUrl = entity.metadata.wikipedia_url
+MERGE (a)-[:HAS_ENTITY { salience: entity.salience, loc: “abstract” }]->(e)
+WITH DISTINCT a
+SET a.processed = true
+----
+
+Result:
+[source,cypher]
+----
+match path = (a:Article)-[:HAS_ENTITY]-(:Entity) where a.txt contains "bird"
+return path
+----
+
+== Semantic Enrichment
+
+We use 2 approaches
+
+* Category extraction from Wikipedia
+* Ontology based: Public (SWEET) and custom.
+
+== Category extraction from Wikipedia
+
+Create concept nodes from explicit wikipedia URL references returned by EE step.
+[source,cypher]
+----
+MATCH (e:Entity) WHERE exists(e.wikiUrl)
+MERGE (c:Concept { wikiUrl: e.wikiUrl }) on create set c.name = replace(n10s.rdf.getIRILocalName(e.wikiUrl),"_"," ")
+MERGE (e)-[:FOR_CONCEPT]->(c)
+----
+
+Get categories
+[source,cypher]
+----
+MATCH (n:Concept)
+WHERE (n)<-[:FOR_CONCEPT]-() AND not coalesce(n.processed, false) with n limit 50
+CALL apoc.load.json("https://en.wikipedia.org/w/api.php?format=json&action=query&prop=categories&clshow=!hidden&titles=" + apoc.text.urlencode(n.name)) yield value
+WITH n, value, keys(value.query.pages)[0] as key
+UNWIND value.query.pages[key].categories as category
+MERGE (c:Concept:WikiCategory { name: substring(category.title,9),
+wikiUrl: "https://en.wikipedia.org/wiki/" + replace(category.title," ","_")})
+MERGE (n)-[:NARROWER_THAN]->(c)
+WITH DISTINCT n SET n.processed = true
+----
+
+Result:
+[source,cypher]
+----
+match path = (a:Article)-[:HAS_ENTITY]->(:Entity)-[:FOR_CONCEPT]->(:Concept)  where a.txt contains "bird"
+return path
+----
+
+== Wikipedia Category Cleansing
+
+Remove loops
+[source,cypher]
+----
+match (wc:WikiCategory)-[nt:NARROWER_THAN]-(wc) delete nt
+----
+
+Remove redundant subClassOf relationships ('shortcuts')
+[source,cypher]
+----
+MATCH (a)-[:NARROWER_THAN*2..]->(c)<-[shortcut:NARROWER_THAN]-(a)
+DELETE shortcut
+----
+
+Link orphan entities to some of the newly imported concepts using name similarity
+[source,cypher]
+----
+MATCH (n:Entity), (c:Concept)
+where not (n)-[:FOR_CONCEPT]->() and
+toLower(replace(n.name," ","")) = toLower(replace(c.name," ",""))
+MERGE (n)-[:FOR_CONCEPT]->(c)
+----
+
+== Querying the graph
+
+Most popular concepts
+[source,cypher]
+----
+MATCH (c:Concept)<-[:FOR_CONCEPT]-()<-[:HAS_ENTITY]-(a:Article)
+RETURN c.name, count(distinct a) as freq
+ORDER BY freq DESC
+----
+
+Semantic search: Searching for "things instead of strings"
+
+[source,cypher]
+----
+MATCH similarity_path = (n:Article)-[:HAS_ENTITY]-(e1:Entity)-[:FOR_CONCEPT]-(c:Concept)-[:FOR_CONCEPT]-(e2:Entity)-[:HAS_ENTITY]-(other:Article)
+WHERE c.name = "Wildland–urban interface"
+RETURN similarity_path
+----
+
+A quick look at bloom?
+Exploring concepts: "Coastal sage scrub", "Cedar Fire",  "Knobcone pine"
+
+== Inferencing
+We kind of have an ontology...
+[source,cypher]
+----
+match hierarchy = (c:Concept {name:"Ethnic groups in the United States"})-[:NARROWER_THAN]-()
+return hierarchy
+----
+
+[source,cypher]
+----
+match hierarchy = (c:Concept)-[:NARROWER_THAN*3..]->() where exists(c.wikiUrl)
+return hierarchy limit 2
+----
+
+So we can run inferences...
+
+[source,cypher]
+----
+match (c:Concept {name:"Ethnic groups in the United States"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with node as entity
+match (entity)<-[:HAS_ENTITY]-(a:Article)
+return a.title as article, collect(distinct entity.name) as entities
+----
+
+Visually...
+[source,cypher]
+----
+match (c:Concept {name:"Air pollution"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with c, node as entity
+match path = (c)<-[:NARROWER_THAN*0..]-()<-[:FOR_CONCEPT]-(entity)<-[:HAS_ENTITY]-(a:Article)
+return path
+----
+
+A look at Bloom?
+
+== Ontology Import (SWEET Ontology Phenomena Reaction)
+
+https://github.com/ESIPFed/sweet/blob/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl
+
+
+[source,cypher]
+----
+call n10s.graphconfig.init({handleVocabUris:"IGNORE", classLabel: "Concept", subClassOfRel: "NARROWER_THAN"})
+----
+
+[source,cypher]
+----
+call n10s.onto.import.fetch("https://raw.githubusercontent.com/ESIPFed/sweet/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl","Turtle")
+----
+
+== Ontology Linkage
+
+RDF inside Cypher + Neosemantics (n10s)
+
+[source,rdf]
+----
+@prefix sophr: <http://sweetontology.net/phenReaction/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix wiki: <https://en.wikipedia.org/wiki/> .
+
+wiki:Wildfire rdfs:subClassOf sophr:Wildfire .
+----
+
+Preview... then import!
+[source,cypher]
+----
+call n10s.onto.preview.inline("
+
+@prefix sophr: <http://sweetontology.net/phenReaction/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix wiki: <https://en.wikipedia.org/wiki/> .
+
+wiki:Wildfire rdfs:subClassOf sophr:Wildfire .
+
+","Turtle")
+----
+
+== Querying the dataset using SWEET
+
+[source,cypher]
+----
+match (c:Concept {uri: "http://sweetontology.net/procChemical/ChemicalReaction"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with node as entity
+match (entity)<-[:HAS_ENTITY]-(a:Article)
+return a.title as article, collect(distinct entity.name) as entities
+----
+
+
+hacky bits
+
+MERGE (co:Concept:Resource { name : "Wildfire" , wikiUrl: "https://en.wikipedia.org/wiki/Wildfire", uri: "https://en.wikipedia.org/wiki/Wildfire"}) WITH co
+MATCH (c:Entity) where toLower(c.name) = "wildfire"
+MERGE (c)-[:FOR_CONCEPT]->(co)

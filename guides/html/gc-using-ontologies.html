@@ -1,0 +1,568 @@
+<style type="text/css" media="screen">
+/*
+.nodes-image {
+	margin:-100;
+}
+*/	
+@import url("//maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css");
+
+.imageblock .content img {max-width: 900px;max-height: 300px;}
+.deck h3, .deck h4 {display: block !important;margin-bottom:8px;margin-top:5px;}
+.listingblock {margin:8px;}
+.pull-bottom {position:relative;bottom:1em;}
+.admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow:1px 1px 2px rgba(0,0,0,.5);cursor:default}
+.admonitionblock td.icon .icon-note:before{content:"\f05a";color:#19407c}
+.admonitionblock td.icon .icon-tip:before{content:"\f0eb";text-shadow:1px 1px 2px rgba(155,155,0,.8);color:#111}
+.admonitionblock td.icon .icon-warning:before{content:"\f071";color:#bf6900}
+.admonitionblock td.icon .icon-caution:before{content:"\f06d";color:#bf3400}
+.admonitionblock td.icon .icon-important:before{content:"\f06a";color:#bf0000}
+</style>
+<style type="text/css" media="screen">
+#editor.maximize-editor .CodeMirror-code { font-size:40px; line-height:45px; }
+</style>
+<article class="guide" ng-controller="AdLibDataController">
+  <carousel class="deck container-fluid">
+    <!--slide class="row-fluid">
+      <div class="col-sm-3">
+        <h3>GC Workshop - Three ways you can use ontologies with Neo4j</h3>
+        <p class="lead">Information</p>
+			<!dl>
+				
+				
+				
+				
+				
+			</dl>
+		</div>
+      <div class="col-sm-9">
+        <figure>
+          <img style="width:300px" src=""/>
+        </figure>
+      </div>
+    </slide-->
+    
+
+
+   <h4>GC Workshop - Three ways you can use ontologies with Neo4j</h4>
+   
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Exploring an ontology</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>There are several ways to explore an RDF-based ontology using n10s</p>
+</div>
+<div class="paragraph">
+<p>Parse the triples in the onto&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>List the classes (categories) defined in the onto&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where predicate = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" and
+	  object = "http://www.w3.org/2000/01/rdf-schema#Class"
+return subject</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>List the elements -both properties and relationships- defined in the onto for a given category (Organization)&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where predicate = "https://schema.org/domainIncludes" and
+	  object = "https://schema.org/Organization"
+with collect (subject) as orgProps
+call n10s.rdf.stream.fetch("https://schema.org/version/latest/schemaorg-current-https.nt","N-Triples", { limit : 99999 }) yield subject, predicate, object
+where subject in orgProps and predicate = "http://www.w3.org/2000/01/rdf-schema#comment"
+return subject, object</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Load data into Neo4j using an ontology as the target model</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>A simpler ontology:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.rdf.stream.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/interop/onto/rail-simple.ttl","Turtle")</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.onto.stream.fetch()</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Automatically generating a data importer model from the ontology (experimental):</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.experimental.stream.dimodel.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/interop/onto/rail-simple.ttl","Turtle")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Open the model in <a href="https://data-importer.graphapp.io/">data importer</a> and carry out import on your neo4j instance from the <a href="https://github.com/jbarrasa/gc-2022/tree/main/interop/data">data files</a>.</p>
+</div>
+<div class="paragraph">
+<p>Then if you want an instant (ootb) RDF endpoint, add the mappings to the ontology.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">CALL n10s.nsprefixes.add(...);
+...
+
+CALL n10s.mapping.add(...);</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>We can test the RDF endpoint</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>The endpoint exposes the graph data as</p>
+</div>
+<div class="paragraph">
+<p>by node id&#8230;&#8203; (pick any from your graph)</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">:get /rdf/neo4j/describe/...</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or using a cypher query&#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p>All stations adjacent to London Bridge station (LBG)</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (:Station { stationCode: 'LBG'})-[:link]-(s) RETURN  s</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">:post /rdf/neo4j/cypher
+{
+"cypher":"MATCH (:Station { stationCode: 'LBG'})-[:link]-(s) RETURN  s",
+"format":"N-Triples"
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>What about properties in relationships? Use <code>Turtle-star</code> format</p>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>(optional) Add geo point for presentation purposes and build a dashboard?</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (s:Station) set s.point = point({latitude: s.lat, longitude: s.long})</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Path between two stations</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match p = shortestPath((:Station { stationCode: "CTR"})-[:link*..40]-&gt;(:Station { stationCode: "HPD"}))
+return p</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Neodash from the GraphApp Gallery</p>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Dataset: Articles on wildfires</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>The data for this example comes from the California Fire Science Consortium  <a href="https://www.cafiresci.org/research-publications" class="bare">https://www.cafiresci.org/research-publications</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (a:Article) where a.txt contains "bird"
+return a</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Automated Entity Extraction</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Using GCP Natural Language API (via APOC)</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (a:Article) where not coalesce(a.processed,false) //with a limit 1
+CALL apoc.nlp.gcp.entities.stream(a, {
+ nodeProperty: 'txt',
+ key: $key
+})
+YIELD value
+UNWIND value.entities as entity
+merge (e:Entity { name: entity.name, type: entity.type}) ON CREATE SET e.wikiUrl = entity.metadata.wikipedia_url
+MERGE (a)-[:HAS_ENTITY { salience: entity.salience, loc: “abstract” }]-&gt;(e)
+WITH DISTINCT a
+SET a.processed = true</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Result:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match path = (a:Article)-[:HAS_ENTITY]-(:Entity) where a.txt contains "bird"
+return path</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Semantic Enrichment</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>We use 2 approaches</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Category extraction from Wikipedia</p>
+</li>
+<li>
+<p>Ontology based: Public (SWEET) and custom.</p>
+</li>
+</ul>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Category extraction from Wikipedia</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Create concept nodes from explicit wikipedia URL references returned by EE step.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (e:Entity) WHERE exists(e.wikiUrl)
+MERGE (c:Concept { wikiUrl: e.wikiUrl }) on create set c.name = replace(n10s.rdf.getIRILocalName(e.wikiUrl),"_"," ")
+MERGE (e)-[:FOR_CONCEPT]-&gt;(c)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Get categories</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (n:Concept)
+WHERE (n)&lt;-[:FOR_CONCEPT]-() AND not coalesce(n.processed, false) with n limit 50
+CALL apoc.load.json("https://en.wikipedia.org/w/api.php?format=json&amp;action=query&amp;prop=categories&amp;clshow=!hidden&amp;titles=" + apoc.text.urlencode(n.name)) yield value
+WITH n, value, keys(value.query.pages)[0] as key
+UNWIND value.query.pages[key].categories as category
+MERGE (c:Concept:WikiCategory { name: substring(category.title,9),
+wikiUrl: "https://en.wikipedia.org/wiki/" + replace(category.title," ","_")})
+MERGE (n)-[:NARROWER_THAN]-&gt;(c)
+WITH DISTINCT n SET n.processed = true</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Result:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match path = (a:Article)-[:HAS_ENTITY]-&gt;(:Entity)-[:FOR_CONCEPT]-&gt;(:Concept)  where a.txt contains "bird"
+return path</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Wikipedia Category Cleansing</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Remove loops</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (wc:WikiCategory)-[nt:NARROWER_THAN]-(wc) delete nt</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Remove redundant subClassOf relationships ('shortcuts')</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (a)-[:NARROWER_THAN*2..]-&gt;(c)&lt;-[shortcut:NARROWER_THAN]-(a)
+DELETE shortcut</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Link orphan entities to some of the newly imported concepts using name similarity</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (n:Entity), (c:Concept)
+where not (n)-[:FOR_CONCEPT]-&gt;() and
+toLower(replace(n.name," ","")) = toLower(replace(c.name," ",""))
+MERGE (n)-[:FOR_CONCEPT]-&gt;(c)</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Querying the graph</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>Most popular concepts</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH (c:Concept)&lt;-[:FOR_CONCEPT]-()&lt;-[:HAS_ENTITY]-(a:Article)
+RETURN c.name, count(distinct a) as freq
+ORDER BY freq DESC</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Semantic search: Searching for "things instead of strings"</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">MATCH similarity_path = (n:Article)-[:HAS_ENTITY]-(e1:Entity)-[:FOR_CONCEPT]-(c:Concept)-[:FOR_CONCEPT]-(e2:Entity)-[:HAS_ENTITY]-(other:Article)
+WHERE c.name = "Wildland–urban interface"
+RETURN similarity_path</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A quick look at bloom?
+Exploring concepts: "Coastal sage scrub", "Cedar Fire",  "Knobcone pine"</p>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Inferencing</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>We kind of have an ontology&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match hierarchy = (c:Concept {name:"Ethnic groups in the United States"})-[:NARROWER_THAN]-()
+return hierarchy</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match hierarchy = (c:Concept)-[:NARROWER_THAN*3..]-&gt;() where exists(c.wikiUrl)
+return hierarchy limit 2</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>So we can run inferences&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (c:Concept {name:"Ethnic groups in the United States"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with node as entity
+match (entity)&lt;-[:HAS_ENTITY]-(a:Article)
+return a.title as article, collect(distinct entity.name) as entities</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Visually&#8230;&#8203;</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (c:Concept {name:"Air pollution"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with c, node as entity
+match path = (c)&lt;-[:NARROWER_THAN*0..]-()&lt;-[:FOR_CONCEPT]-(entity)&lt;-[:HAS_ENTITY]-(a:Article)
+return path</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A look at Bloom?</p>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Ontology Import (SWEET Ontology Phenomena Reaction)</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p><a href="https://github.com/ESIPFed/sweet/blob/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl" class="bare">https://github.com/ESIPFed/sweet/blob/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl</a></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.graphconfig.init({handleVocabUris:"IGNORE", classLabel: "Concept", subClassOfRel: "NARROWER_THAN"})</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.onto.import.fetch("https://raw.githubusercontent.com/ESIPFed/sweet/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl","Turtle")</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Ontology Linkage</h3>
+    <br/>
+    <div>
+      <div class="paragraph">
+<p>RDF inside Cypher + Neosemantics (n10s)</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="rdf language-rdf">@prefix sophr: &lt;http://sweetontology.net/phenReaction/&gt; .
+@prefix rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt; .
+@prefix wiki: &lt;https://en.wikipedia.org/wiki/&gt; .
+
+wiki:Wildfire rdfs:subClassOf sophr:Wildfire .</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Preview&#8230;&#8203; then import!</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">call n10s.onto.preview.inline("
+
+@prefix sophr: &lt;http://sweetontology.net/phenReaction/&gt; .
+@prefix rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt; .
+@prefix wiki: &lt;https://en.wikipedia.org/wiki/&gt; .
+
+wiki:Wildfire rdfs:subClassOf sophr:Wildfire .
+
+","Turtle")</code></pre>
+</div>
+</div>
+	</div>
+  </div>
+</slide>
+
+
+
+<slide class="row-fluid">
+  <div class="col-sm-12">
+    <h3>Querying the dataset using SWEET</h3>
+    <br/>
+    <div>
+      <div class="listingblock">
+<div class="content">
+<pre mode="cypher"  class="highlight pre-scrollable code runnable standalone-example ng-binding"><code class="cypher language-cypher">match (c:Concept {uri: "http://sweetontology.net/procChemical/ChemicalReaction"})
+call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
+with node as entity
+match (entity)&lt;-[:HAS_ENTITY]-(a:Article)
+return a.title as article, collect(distinct entity.name) as entities</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>hacky bits</p>
+</div>
+<div class="paragraph">
+<p>MERGE (co:Concept:Resource { name : "Wildfire" , wikiUrl: "https://en.wikipedia.org/wiki/Wildfire", uri: "https://en.wikipedia.org/wiki/Wildfire"}) WITH co
+MATCH (c:Entity) where toLower(c.name) = "wildfire"
+MERGE (c)-[:FOR_CONCEPT]&#8594;(co)</p>
+</div>
+	</div>
+  </div>
+</slide>
+  </carousel>
+</article>

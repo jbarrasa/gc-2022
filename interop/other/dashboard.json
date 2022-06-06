@@ -1,0 +1,31 @@
+{
+  "title": "GC2022",
+  "version": "2.1",
+  "settings": {
+    "pagenumber": 0,
+    "editable": true,
+    "fullscreenEnabled": false,
+    "parameters": {}
+  },
+  "pages": [
+    {
+      "title": "Main Page",
+      "reports": [
+        {
+          "title": "Route between two locations",
+          "query": "MATCH p = shortestPath((:Station { stationCode: \"CTR\"})-[:link*..40]->(:Station { stationCode: \"HPD\"})) \nunwind relationships(p) as link\nRETURN startNode(link), link, endNode(link)\n\n",
+          "width": 12,
+          "height": 4,
+          "x": 0,
+          "y": 0,
+          "type": "map",
+          "selection": {
+            "Station": "stationName"
+          },
+          "settings": {}
+        }
+      ]
+    }
+  ],
+  "parameters": {}
+}
