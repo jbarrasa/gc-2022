@@ -126,7 +126,7 @@
           "labelProperties": [],
           "properties": [
             {
-              "property": "concepturi",
+              "property": "uri",
               "type": "string",
               "identifier": "19c61acd-50a2-4156-b33e-6c8d0c026f15"
             },

@@ -1,6 +1,6 @@
 = GC Workshop - Three ways you can use ontologies with Neo4j
 
-
+== Example 1: Interoperability
 
 == Exploring an ontology
 
@@ -39,19 +39,14 @@ return subject, object
 
 == Load data into Neo4j using an ontology as the target model
 
-A simpler ontology:
+A quick look at a simpler ontology...
 
 [source,cypher]
 ----
 call n10s.rdf.stream.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/interop/onto/rail-simple.ttl","Turtle")
 ----
 
-[source,cypher]
-----
-call n10s.onto.stream.fetch()
-----
-
-== Automatically generating a data importer model from the ontology (experimental):
+Automatically generating a data importer model from the ontology (experimental):
 
 [source,cypher]
 ----
@@ -117,223 +112,203 @@ match p = shortestPath((:Station { stationCode: "CTR"})-[:link*..40]->(:Station 
 return p
 ----
 
-Neodash from the GraphApp Gallery
+Try Neodash from the GraphApp Gallery with https://github.com/jbarrasa/gc-2022/blob/main/interop/other/dashboard.json[this predefined dashboard].
 
 
+== Example 2: Semantic Search
 
-== Dataset: Articles on wildfires
+First we'll build the KG in two steps: first we load the data and then we overlay the ontology.
 
-The data for this example comes from the California Fire Science Consortium  https://www.cafiresci.org/research-publications
+Once the KG is built, we'll run a few semantic searches on it.
 
-[source,cypher]
-----
-match (a:Article) where a.txt contains "bird"
-return a
-----
+== Configure the DB so that it's ready to import RDF data
 
-== Automated Entity Extraction
-
-Using GCP Natural Language API (via APOC)
+We first create the required constraint
 
 [source,cypher]
 ----
-match (a:Article) where not coalesce(a.processed,false) //with a limit 1
-CALL apoc.nlp.gcp.entities.stream(a, {
- nodeProperty: 'txt',
- key: $key
-})
-YIELD value
-UNWIND value.entities as entity
-merge (e:Entity { name: entity.name, type: entity.type}) ON CREATE SET e.wikiUrl = entity.metadata.wikipedia_url
-MERGE (a)-[:HAS_ENTITY { salience: entity.salience, loc: “abstract” }]->(e)
-WITH DISTINCT a
-SET a.processed = true
+CREATE CONSTRAINT n10s_unique_uri ON (r:Resource) ASSERT r.uri IS UNIQUE;
 ----
 
-Result:
-[source,cypher]
-----
-match path = (a:Article)-[:HAS_ENTITY]-(:Entity) where a.txt contains "bird"
-return path
-----
-
-== Semantic Enrichment
-
-We use 2 approaches
-
-* Category extraction from Wikipedia
-* Ontology based: Public (SWEET) and custom.
-
-== Category extraction from Wikipedia
-
-Create concept nodes from explicit wikipedia URL references returned by EE step.
-[source,cypher]
-----
-MATCH (e:Entity) WHERE exists(e.wikiUrl)
-MERGE (c:Concept { wikiUrl: e.wikiUrl }) on create set c.name = replace(n10s.rdf.getIRILocalName(e.wikiUrl),"_"," ")
-MERGE (e)-[:FOR_CONCEPT]->(c)
-----
-
-Get categories
-[source,cypher]
-----
-MATCH (n:Concept)
-WHERE (n)<-[:FOR_CONCEPT]-() AND not coalesce(n.processed, false) with n limit 50
-CALL apoc.load.json("https://en.wikipedia.org/w/api.php?format=json&action=query&prop=categories&clshow=!hidden&titles=" + apoc.text.urlencode(n.name)) yield value
-WITH n, value, keys(value.query.pages)[0] as key
-UNWIND value.query.pages[key].categories as category
-MERGE (c:Concept:WikiCategory { name: substring(category.title,9),
-wikiUrl: "https://en.wikipedia.org/wiki/" + replace(category.title," ","_")})
-MERGE (n)-[:NARROWER_THAN]->(c)
-WITH DISTINCT n SET n.processed = true
-----
-
-Result:
-[source,cypher]
-----
-match path = (a:Article)-[:HAS_ENTITY]->(:Entity)-[:FOR_CONCEPT]->(:Concept)  where a.txt contains "bird"
-return path
-----
-
-== Wikipedia Category Cleansing
-
-Remove loops
-[source,cypher]
-----
-match (wc:WikiCategory)-[nt:NARROWER_THAN]-(wc) delete nt
-----
-
-Remove redundant subClassOf relationships ('shortcuts')
-[source,cypher]
-----
-MATCH (a)-[:NARROWER_THAN*2..]->(c)<-[shortcut:NARROWER_THAN]-(a)
-DELETE shortcut
-----
-
-Link orphan entities to some of the newly imported concepts using name similarity
-[source,cypher]
-----
-MATCH (n:Entity), (c:Concept)
-where not (n)-[:FOR_CONCEPT]->() and
-toLower(replace(n.name," ","")) = toLower(replace(c.name," ",""))
-MERGE (n)-[:FOR_CONCEPT]->(c)
-----
-
-== Querying the graph
-
-Most popular concepts
-[source,cypher]
-----
-MATCH (c:Concept)<-[:FOR_CONCEPT]-()<-[:HAS_ENTITY]-(a:Article)
-RETURN c.name, count(distinct a) as freq
-ORDER BY freq DESC
-----
-
-Semantic search: Searching for "things instead of strings"
+And set the config for importing ontologies:
 
 [source,cypher]
 ----
-MATCH similarity_path = (n:Article)-[:HAS_ENTITY]-(e1:Entity)-[:FOR_CONCEPT]-(c:Concept)-[:FOR_CONCEPT]-(e2:Entity)-[:HAS_ENTITY]-(other:Article)
-WHERE c.name = "Wildland–urban interface"
-RETURN similarity_path
+call n10s.graphconfig.init({ handleVocabUris: "IGNORE", classLabel: "Concept", subClassOfRel: "broader"});
 ----
 
-A quick look at bloom?
-Exploring concepts: "Coastal sage scrub", "Cedar Fire",  "Knobcone pine"
+== Loading the data: Articles with pre-extracted entities
 
-== Inferencing
-We kind of have an ontology...
-[source,cypher]
-----
-match hierarchy = (c:Concept {name:"Ethnic groups in the United States"})-[:NARROWER_THAN]-()
-return hierarchy
-----
+Use the https://data-importer.graphapp.io/[data importer] with https://github.com/jbarrasa/gc-2022/blob/main/search/other/imodel.json[this model]
+and https://github.com/jbarrasa/gc-2022/tree/main/search/data[this set of data files].
+
+
+== Ontology Import
+
+Let's import the concept scheme
 
 [source,cypher]
 ----
-match hierarchy = (c:Concept)-[:NARROWER_THAN*3..]->() where exists(c.wikiUrl)
-return hierarchy limit 2
+call n10s.skos.import.fetch("https://raw.githubusercontent.com/jbarrasa/goingmeta/main/session2/resources/goingmeta-skos.ttl","Turtle");
 ----
 
-So we can run inferences...
+Let's 'clean' the taxonomy: remove redundant `broader` relationships (from Wikidata extract).
 
 [source,cypher]
 ----
-match (c:Concept {name:"Ethnic groups in the United States"})
-call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
-with node as entity
-match (entity)<-[:HAS_ENTITY]-(a:Article)
-return a.title as article, collect(distinct entity.name) as entities
+match (s:Concept)-[shortcut:broader]->(:Concept)<-[:broader*2..]-(s)
+delete shortcut;
 ----
 
-Visually...
-[source,cypher]
-----
-match (c:Concept {name:"Air pollution"})
-call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
-with c, node as entity
-match path = (c)<-[:NARROWER_THAN*0..]-()<-[:FOR_CONCEPT]-(entity)<-[:HAS_ENTITY]-(a:Article)
-return path
-----
+== Some Semantic searches on the KG (1)
 
-A look at Bloom?
+__Articles on "NoSQL database management system"__
 
-== Ontology Import (SWEET Ontology Phenomena Reaction)
-
-https://github.com/ESIPFed/sweet/blob/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl
-
+This will require returning articles both directly or indirectly connected to that category.
 
 [source,cypher]
 ----
-call n10s.graphconfig.init({handleVocabUris:"IGNORE", classLabel: "Concept", subClassOfRel: "NARROWER_THAN"})
+MATCH path = (:Concept {prefLabel: "NoSQL database management system"})<-[:broader*0..]-(sc)<-[:refers_to]-(art:Article)
+return art.title, [x in nodes(path) where x:Concept | coalesce(x.prefLabel,"") + coalesce(x.label,"") ]
 ----
+
+or using the inferencing method in n10s
 
 [source,cypher]
 ----
-call n10s.onto.import.fetch("https://raw.githubusercontent.com/ESIPFed/sweet/43a48ca2ba52ce2479400f82f9b6917583e1e92a/src/phenReaction.ttl","Turtle")
+match (c:Concept {prefLabel: "NoSQL database management system"})
+call n10s.inference.nodesInCategory(c, { inCatRel: "refers_to"}) yield node as article
+return article.title as result
 ----
 
-== Ontology Linkage
+== Some Semantic searches on the KG (2)
 
-RDF inside Cypher + Neosemantics (n10s)
+__Read next__ type of queries for recommendation/personalisation.
 
-[source,rdf]
-----
-@prefix sophr: <http://sweetontology.net/phenReaction/> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix wiki: <https://en.wikipedia.org/wiki/> .
-
-wiki:Wildfire rdfs:subClassOf sophr:Wildfire .
-----
-
-Preview... then import!
-[source,cypher]
-----
-call n10s.onto.preview.inline("
-
-@prefix sophr: <http://sweetontology.net/phenReaction/> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix wiki: <https://en.wikipedia.org/wiki/> .
-
-wiki:Wildfire rdfs:subClassOf sophr:Wildfire .
-
-","Turtle")
-----
-
-== Querying the dataset using SWEET
+Use this query to create a search phrase in Bloom and visually explore recommendation paths.
 
 [source,cypher]
 ----
-match (c:Concept {uri: "http://sweetontology.net/procChemical/ChemicalReaction"})
-call n10s.inference.nodesInCategory(c,{ inCatRel: 'FOR_CONCEPT' }) yield node
-with node as entity
-match (entity)<-[:HAS_ENTITY]-(a:Article)
-return a.title as article, collect(distinct entity.name) as entities
+match simpath = (a:Article)-[:refers_to]->(cat)-[:broader*0..1]->()<-[:broader*0..1]-()<-[:refers_to]-(other)
+where a.uri = "https://dev.to/qainsights/performance-testing-neo4j-database-using-bolt-protocol-in-apache-jmeter-1oa9"
+return other.title, [x in nodes(simpath) where x:Concept | coalesce(x.prefLabel,x.label) ] as explain
+----
+
+The quality of the results can be improved by adding another ontology (software stack onto)
+
+[source,cypher]
+----
+CALL n10s.onto.import.fetch("http://www.nsmntx.org/2020/08/swStacks","Turtle");
 ----
 
 
-hacky bits
+== Example 3: Model Validation
 
-MERGE (co:Concept:Resource { name : "Wildfire" , wikiUrl: "https://en.wikipedia.org/wiki/Wildfire", uri: "https://en.wikipedia.org/wiki/Wildfire"}) WITH co
-MATCH (c:Entity) where toLower(c.name) = "wildfire"
-MERGE (c)-[:FOR_CONCEPT]->(co)
+== Loading the data: The Northwind Graph
+
+Use the https://data-importer.graphapp.io/[data importer] with https://github.com/jbarrasa/gc-2022/blob/main/validation/other/imodel.json[this model]
+and https://github.com/jbarrasa/gc-2022/tree/main/validation/data[this set of data files].
+
+== Load a subset of the SHACL shapes
+
+[source,cypher]
+----
+call n10s.validation.shacl.import.inline('
+
+
+@prefix ex: <http://example.neo4j.com/graphvalidation#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix neo4j: <neo4j://graph.schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:SupplierShape a sh:NodeShape ;
+  sh:targetClass neo4j:Supplier ;
+  sh:property [
+    sh:path neo4j:companyName ;
+    sh:pattern "^\\w[^&]*$" ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+  ] .
+
+','Turtle')
+----
+
+And validate the graph...
+
+[source,cypher]
+----
+call n10s.validation.shacl.validate()
+----
+
+== Data changes over time...
+
+Let's modify the graph adding a second company name for a random supplier:
+
+[source,cypher]
+----
+match (s:Supplier) with s limit 1
+set s.companyName = [s.companyName, replace(s.companyName, " ", "")]
+return s
+----
+
+And let's re-run the Validation
+
+[source,cypher]
+----
+call n10s.validation.shacl.validate()
+----
+
+== A richer set of constraints
+
+They can be loaded inline like before or retrieved directly from a file or a service.
+
+[source,cypher]
+----
+call n10s.validation.shacl.import.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/validation/shapes/northwind-shacl.ttl","Turtle")
+----
+
+And we can list the constraints that apply to a given category of nodes (label).
+
+[source,cypher]
+----
+call n10s.validation.shacl.listShapes() yield target, propertyOrRelationshipPath, param, value
+where target = 'Supplier'
+return target, propertyOrRelationshipPath, param, value
+----
+
+We can re-run the validation once more...
+
+[source,cypher]
+----
+call n10s.validation.shacl.validate()
+----
+
+And introduce more violations
+
+[source,cypher]
+----
+match (p:Product) with p limit 1 set p.unitPrice = toString(p.unitPrice) return p
+----
+
+And filter the results by node
+
+[source,cypher]
+----
+call n10s.validation.shacl.validate() yield focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+where focusNode = $nodeid
+return focusNode, nodeType, shapeId, propertyShape, offendingValue, resultPath, severity, resultMessage
+----
+
+== Using the severity to define business level validations
+
+Move from low level data quality to business level checks
+
+[source,cypher]
+----
+call n10s.validation.shacl.import.fetch("https://raw.githubusercontent.com/jbarrasa/gc-2022/main/validation/shapes/northwind-custom-sev-shacl.ttl","Turtle")
+----
+
+
+== Using a dashboard to visualise validation results
+
+Try Neodash with https://github.com/jbarrasa/gc-2022/blob/main/validation/other/dashboard.json[this predefined dashboard].
