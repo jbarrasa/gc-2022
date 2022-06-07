@@ -1,0 +1,211 @@
+{
+  "version": "0.1.2-beta.5",
+  "graph": {
+    "nodes": [
+      {
+        "id": "n0",
+        "position": {
+          "x": -292,
+          "y": 2
+        },
+        "caption": "Article"
+      },
+      {
+        "id": "n1",
+        "position": {
+          "x": 186,
+          "y": 2
+        },
+        "caption": "Resource"
+      }
+    ],
+    "relationships": [
+      {
+        "id": "n0",
+        "type": "refers_to",
+        "fromId": "n0",
+        "toId": "n1"
+      }
+    ]
+  },
+  "dataModel": {
+    "fileModel": {
+      "fileSchemas": {
+        "extracted-entities.csv": {
+          "expanded": true,
+          "fields": [
+            {
+              "name": "articleuri",
+              "type": "string",
+              "sample": "https://dev.to/lirantal/securing-a-nodejs--rethinkdb--tls-setup-on-docker-containers",
+              "include": true
+            },
+            {
+              "name": "concepturi",
+              "type": "string",
+              "sample": "http://www.wikidata.org/entity/Q82231",
+              "include": true
+            },
+            {
+              "name": "conceptname",
+              "type": "string",
+              "sample": "NoSQL database management system",
+              "include": true
+            }
+          ]
+        },
+        "articles.csv": {
+          "expanded": true,
+          "fields": [
+            {
+              "name": "uri",
+              "type": "string",
+              "sample": "https://dev.to/lirantal/securing-a-nodejs--rethinkdb--tls-setup-on-docker-containers",
+              "include": true
+            },
+            {
+              "name": "body",
+              "type": "string",
+              "sample": "We use RethinkDB at work across different projects. It isn’t used for any sort of big-data applications, but rather as a NoSQL database, which spices things up with real-time updates, and relational tables support.RethinkDB features an officially supported Node.js driver, as well as a community-maintained driver as well called rethinkdbdash which is promises-based, and provides connection pooling. There is also a database migration tool called rethinkdb-migrate that aids in managing database changes such as schema changes, database seeding, tear up and tear down capabilities.We’re going to use the official RethinkDB docker image from the docker hub and make use of docker-compose.yml to spin it up (later on you can add additional services to this setup).A fair example for docker-compose.yml:The compose file mounts a local tls directory as a mapped volume inside the container. The tls/ directory will contain our cert files, and the compose file is reflecting this.To setup a secure connection we need to facilitate it using certificates so an initial technical step:Important notes:Update the compose file to include a command configuration that starts the RethinkDB process with all the required SSL configurationImportant notes:You’ll notice there isn’t any cluster related configuration but you can add them as well if you need to so they can join the SSL connection: — cluster-tls — cluster-tls-key /tls/key.pem — cluster-tls-cert /tls/cert.pem — cluster-tls-ca /tls/ca.pemThe RethinkDB drivers support an ssl optional object which either sets the certificate using the ca property, or sets the rejectUnauthorized property to accept or reject self-signed certificates when connecting. A snippet for the ssl configuration to pass to the driver:Now that the connection is secured, it only makes sense to connect using a user/password which are not the default.To set it up, update the compose file to also include the — initial-password argument so you can set the default admin user’s password. For example:Of course you need to append this argument to the rest of the command line options in the above compose file.Now, update the Node.js driver settings to use a user and password to connect:Congratulations! You’re now eligible to “Ready for Production stickers.Don’t worry, I already mailed them to your address.",
+              "include": true
+            },
+            {
+              "name": "title",
+              "type": "string",
+              "sample": "Securing a Node.js + RethinkDB + TLS setup on Docker containers",
+              "include": true
+            },
+            {
+              "name": "date",
+              "type": "string",
+              "sample": "2017-08-21T18:41:06Z",
+              "include": true
+            }
+          ]
+        }
+      }
+    },
+    "graphModel": {
+      "nodeSchemas": {
+        "n0": {
+          "label": "Article",
+          "additionLabels": [],
+          "labelProperties": [],
+          "properties": [
+            {
+              "property": "uri",
+              "type": "string",
+              "identifier": "f3ea38fc-11b7-4de0-aad5-11562ff94cda"
+            },
+            {
+              "property": "body",
+              "type": "string",
+              "identifier": "f43c25f7-de75-45d1-8528-caf490ac17ab"
+            },
+            {
+              "property": "title",
+              "type": "string",
+              "identifier": "0738ae2c-df70-46e4-a7ed-f9a1b8f76768"
+            },
+            {
+              "property": "date",
+              "type": "string",
+              "identifier": "209eeffa-e5ac-429e-913a-59291b91d4db"
+            }
+          ],
+          "key": {
+            "properties": [
+              "f3ea38fc-11b7-4de0-aad5-11562ff94cda"
+            ],
+            "name": ""
+          }
+        },
+        "n1": {
+          "label": "Resource",
+          "additionLabels": [],
+          "labelProperties": [],
+          "properties": [
+            {
+              "property": "concepturi",
+              "type": "string",
+              "identifier": "19c61acd-50a2-4156-b33e-6c8d0c026f15"
+            },
+            {
+              "property": "conceptname",
+              "type": "string",
+              "identifier": "87c118a4-e743-4788-ba20-16c6fc976c5c"
+            }
+          ],
+          "key": {
+            "properties": [
+              "19c61acd-50a2-4156-b33e-6c8d0c026f15"
+            ],
+            "name": ""
+          }
+        }
+      },
+      "relationshipSchemas": {
+        "n0": {
+          "type": "refers_to",
+          "sourceNodeSchema": "n0",
+          "targetNodeSchema": "n1",
+          "properties": []
+        }
+      }
+    },
+    "mappingModel": {
+      "nodeMappings": {
+        "n0": {
+          "nodeSchema": "n0",
+          "fileSchema": "articles.csv",
+          "mappings": [
+            {
+              "field": "uri"
+            },
+            {
+              "field": "body"
+            },
+            {
+              "field": "title"
+            },
+            {
+              "field": "date"
+            }
+          ]
+        },
+        "n1": {
+          "nodeSchema": "n1",
+          "fileSchema": "extracted-entities.csv",
+          "mappings": [
+            {
+              "field": "concepturi"
+            },
+            {
+              "field": "conceptname"
+            }
+          ]
+        }
+      },
+      "relationshipMappings": {
+        "n0": {
+          "relationshipSchema": "n0",
+          "mappings": [],
+          "sourceMappings": [
+            {
+              "field": "articleuri"
+            }
+          ],
+          "targetMappings": [
+            {
+              "field": "concepturi"
+            }
+          ],
+          "fileSchema": "extracted-entities.csv"
+        }
+      }
+    },
+    "configurations": {
+      "idsToIgnore": []
+    }
+  }
+}
