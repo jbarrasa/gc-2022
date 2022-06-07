@@ -38,7 +38,7 @@ ex:ProdShape a sh:NodeShape ;
 .
 
 ex:OrderShape a sh:NodeShape ;
-  sch:targetClass neo4j:Order ;
+  sh:targetClass neo4j:Order ;
   sh:property [
     sh:path neo4j:contains ;
     sh:class neo4j:Product ;
