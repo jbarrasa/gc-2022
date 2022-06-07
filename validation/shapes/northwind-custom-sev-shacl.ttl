@@ -5,11 +5,12 @@
 
 ex:ProdShape a sh:NodeShape ;
   sh:targetClass neo4j:Product ;
-  
+
   sh:property [
-    sh:path neo4j:unitPrice ;           
+    sh:path neo4j:unitPrice ;
     sh:maxInclusive 100 ;
-    sh:severity neo4j:OverpricedProduct ;
+    sh:minInclusive 10 ;
+    sh:severity neo4j:WrongPricedProduct ;
   ];
   sh:property [
     sh:path neo4j:supplied_by ;
